@@ -51,6 +51,7 @@ namespace WPCordovaClassLib.Cordova.Commands
             public bool TrustAllHosts { get; set; }
             public string Id { get; set; }
             public string Headers { get; set; }
+            public string Cookies { get; set; }
             public string CallbackId { get; set; }
             public bool ChunkedMode { get; set; }
             /// Server address
@@ -84,7 +85,7 @@ namespace WPCordovaClassLib.Cordova.Commands
         public const int ConnectionError = 3;
         public const int AbortError = 4; // not really an error, but whatevs
 
-        private static Dictionary<string, DownloadRequestState> InProcDownloads = new Dictionary<string,DownloadRequestState>();
+        private static Dictionary<string, DownloadRequestState> InProcDownloads = new Dictionary<string, DownloadRequestState>();
 
         /// <summary>
         /// Uploading response info
@@ -246,7 +247,7 @@ namespace WPCordovaClassLib.Cordova.Commands
                     uploadOptions.Params = args[5];
 
                     bool trustAll = false;
-                    bool.TryParse(args[6],out trustAll);
+                    bool.TryParse(args[6], out trustAll);
                     uploadOptions.TrustAllHosts = trustAll;
 
                     bool doChunked = false;
@@ -261,7 +262,8 @@ namespace WPCordovaClassLib.Cordova.Commands
                     uploadOptions.Id = args[9];
                     uploadOptions.Method = args[10];
 
-                    uploadOptions.CallbackId = callbackId = args[11];
+                    uploadOptions.Cookies = args[11];
+                    uploadOptions.CallbackId = callbackId = args[12];
                 }
                 catch (Exception)
                 {
@@ -282,6 +284,31 @@ namespace WPCordovaClassLib.Cordova.Commands
                 webRequest = (HttpWebRequest)WebRequest.Create(serverUri);
                 webRequest.ContentType = "multipart/form-data; boundary=" + Boundary;
                 webRequest.Method = uploadOptions.Method;
+                var cookies = (uploadOptions.Cookies ?? "").Split(new[] { '&' }, StringSplitOptions.RemoveEmptyEntries);
+                var cookiesHeader = "";
+                if (cookies.Length > 0)
+                {
+                    foreach (var c in cookies)
+                    {
+                        var cookie = (c ?? "").Split(new[] { ';' }, StringSplitOptions.None);
+                        if (cookie.Length >= 4)
+                        {
+                            //if (webRequest.CookieContainer == null)
+                            //{
+                            //    webRequest.CookieContainer = new CookieContainer();
+                            //}
+                            //var cookieItem = new Cookie(cookie[0], cookie[1], cookie[2], cookie[3]);
+                            //cookieItem.Expires = new DateTime(2100, 1, 1);
+                            //webRequest.CookieContainer.Add(serverUri, cookieItem);
+                            cookiesHeader = (string.IsNullOrEmpty(cookiesHeader) ? "" : "; ")
+                                + cookie[0] + "=" + cookie[1];
+                        }
+                    }
+                }
+                if (!string.IsNullOrEmpty(cookiesHeader))
+                {
+                    webRequest.Headers["Cookie"] = cookiesHeader;
+                }
 
                 if (!string.IsNullOrEmpty(uploadOptions.Headers))
                 {
@@ -302,12 +329,12 @@ namespace WPCordovaClassLib.Cordova.Commands
             }
             catch (Exception /*ex*/)
             {
-                DispatchCommandResult(new PluginResult(PluginResult.Status.ERROR, new FileTransferError(ConnectionError)),callbackId);
+                DispatchCommandResult(new PluginResult(PluginResult.Status.ERROR, new FileTransferError(ConnectionError)), callbackId);
             }
         }
 
         // example : "{\"Authorization\":\"Basic Y29yZG92YV91c2VyOmNvcmRvdmFfcGFzc3dvcmQ=\"}"
-        protected Dictionary<string,string> parseHeaders(string jsonHeaders)
+        protected Dictionary<string, string> parseHeaders(string jsonHeaders)
         {
             try
             {
@@ -357,7 +384,7 @@ namespace WPCordovaClassLib.Cordova.Commands
                 downloadOptions.FilePath = optionStrings[1];
 
                 bool trustAll = false;
-                bool.TryParse(optionStrings[2],out trustAll);
+                bool.TryParse(optionStrings[2], out trustAll);
                 downloadOptions.TrustAllHosts = trustAll;
 
                 downloadOptions.Id = optionStrings[3];
